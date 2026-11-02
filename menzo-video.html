@@ -119,6 +119,46 @@
       margin-right: 5px;
     }
 
+    .marker-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .marker-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      background: #111720;
+      border: 1px solid #354150;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .marker-row .marker-name {
+      flex: 1;
+      min-width: 120px;
+      font-weight: 700;
+    }
+
+    .marker-row .marker-meta {
+      color: #aebaca;
+      font-size: .88rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .marker-row button.active-bound {
+      background: #2a4a3a;
+      border-color: #48d597;
+    }
+
+    .marker-empty {
+      margin: 12px 0 0;
+      color: #aebaca;
+      font-size: .88rem;
+    }
+
     /* Slate preview */
     .slate-board {
       max-width: 720px;
@@ -217,7 +257,7 @@
       </label>
       <label>
         Shot
-        <input id="shotInput" type="text" value="1">
+        <input id="shotInput" type="text" value="30 fps">
       </label>
       <label>
         Take
@@ -244,7 +284,7 @@
         </div>
         <div class="slate-cell">
           <span class="slate-label">Shot</span>
-          <span class="slate-value" id="previewShot">1</span>
+          <span class="slate-value" id="previewShot">30 fps</span>
         </div>
         <div class="slate-cell">
           <span class="slate-label">Take</span>
@@ -295,12 +335,12 @@
       <label>
         Loop mode
         <select id="modeSelect">
-          <option value="frames" selected>Frames</option>
-          <option value="measures">Measures</option>
+          <option value="frames">Frames</option>
+          <option value="measures" selected>Measures</option>
         </select>
       </label>
 
-      <div id="frameControls" class="controls">
+      <div id="frameControls" class="controls hidden">
         <label>
           Start frame
           <input id="startFrame" type="number" min="0" step="1" value="0">
@@ -311,7 +351,7 @@
         </label>
       </div>
 
-      <div id="measureControls" class="controls hidden">
+      <div id="measureControls" class="controls">
         <label>
           BPM
           <input id="bpmInput" type="number" min="1" step="0.1" value="120">
@@ -343,12 +383,38 @@
   </section>
 
   <section class="panel">
-    <canvas id="waveform" aria-label="Audio waveform and loop markers"></canvas>
+    <h2>Scene markers</h2>
+    <div class="controls">
+      <label>
+        Marker name
+        <input id="markerNameInput" type="text" placeholder="Verse 1, Chorus, Scene 2A">
+      </label>
+      <label>
+        Start measure
+        <input id="markerStartMeasure" type="number" min="1" step="1" value="1">
+      </label>
+      <label>
+        End measure
+        <input id="markerEndMeasure" type="number" min="1" step="1" value="4">
+      </label>
+      <button id="addMeasureRangeButton" disabled>Add measure range</button>
+      <button id="addMarkerButton" disabled>Add at playhead</button>
+    </div>
+    <p class="hint">
+      Type a measure range (inclusive) to save a scene, then tap Loop this on set.
+      You can still drop a point at the playhead, double-click the waveform, or press M.
+    </p>
+    <div id="markerList" class="marker-list"></div>
+  </section>
+
+  <section class="panel">
+    <canvas id="waveform" aria-label="Audio waveform, loop markers, and named scene markers"></canvas>
 
     <div class="marker-key">
       <span><i class="dot" style="background:#48d597"></i>Loop in</span>
       <span><i class="dot" style="background:#ffbd59"></i>Loop out</span>
-      <span>Drag a marker to move it; dragging switches to Frames mode.</span>
+      <span><i class="dot" style="background:#b094ff"></i>Named marker</span>
+      <span>Drag a loop or named marker to move it. In Measures mode, the loop snaps to whole measures.</span>
     </div>
 
     <p class="hint">
@@ -380,6 +446,12 @@
   const slateStatus = $("slateStatus");
   const canvas = $("waveform");
   const ctx2d = canvas.getContext("2d");
+  const markerNameInput = $("markerNameInput");
+  const markerStartMeasureInput = $("markerStartMeasure");
+  const markerEndMeasureInput = $("markerEndMeasure");
+  const addMeasureRangeButton = $("addMeasureRangeButton");
+  const addMarkerButton = $("addMarkerButton");
+  const markerList = $("markerList");
 
   let audioContext = null;
   let audioBuffer = null;
@@ -391,6 +463,11 @@
   let waveformPeaks = [];
   let dragMarker = null;
   let duration = 0;
+  let currentFileName = "";
+  let songMarkers = [];
+  let activeLoopMarkerId = null;
+  let slateSessionActive = false;
+  let loopWrapCount = 0;
 
   function fps() {
     return Number(fpsSelect.value);
@@ -398,6 +475,40 @@
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function measureLength() {
+    const bpm = Math.max(1, Number(bpmInput.value) || 120);
+    const beats = Math.max(1, Number(beatsInput.value) || 4);
+    return beats * 60 / bpm;
+  }
+
+  function maxMeasure() {
+    if (!duration) return 1;
+    return Math.max(1, Math.ceil(duration / measureLength()));
+  }
+
+  function secondsToStartMeasure(seconds) {
+    return clamp(Math.floor(Math.max(0, seconds) / measureLength()) + 1, 1, maxMeasure());
+  }
+
+  function secondsToEndMeasure(seconds) {
+    return clamp(Math.max(1, Math.ceil(Math.max(0, seconds) / measureLength()) || 1), 1, maxMeasure());
+  }
+
+  function markerTimes(marker) {
+    const length = measureLength();
+    if (marker.kind === "range") {
+      const startMeasure = Math.max(1, Number(marker.startMeasure) || 1);
+      const endMeasure = Math.max(startMeasure, Number(marker.endMeasure) || startMeasure);
+      return {
+        start: clamp((startMeasure - 1) * length, 0, duration || 0),
+        end: clamp(endMeasure * length, 0, duration || 0)
+      };
+    }
+
+    const seconds = clamp(Number(marker.seconds) || 0, 0, duration || 0);
+    return { start: seconds, end: seconds };
   }
 
   function formatTimecode(seconds, rate) {
@@ -428,17 +539,15 @@
     let start, end;
 
     if (modeSelect.value === "measures") {
-      const bpm = Math.max(1, Number(bpmInput.value) || 120);
-      const beats = Math.max(1, Number(beatsInput.value) || 4);
-      const measureLength = beats * 60 / bpm;
+      const length = measureLength();
       const startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
       const endMeasure = Math.max(
         startMeasure,
         Number(endMeasureInput.value) || startMeasure
       );
 
-      start = (startMeasure - 1) * measureLength;
-      end = endMeasure * measureLength;
+      start = (startMeasure - 1) * length;
+      end = endMeasure * length;
     } else {
       const startFrame = Math.max(0, Number(startFrameInput.value) || 0);
       const endFrame = Math.max(
@@ -551,6 +660,45 @@
     });
     ctx2d.stroke();
 
+    songMarkers.forEach(marker => {
+      const times = markerTimes(marker);
+      const startX = clamp((times.start / duration) * width, 0, width);
+      const endX = clamp((times.end / duration) * width, 0, width);
+
+      if (marker.kind === "range" && endX > startX) {
+        ctx2d.fillStyle = "rgba(176,148,255,0.14)";
+        ctx2d.fillRect(startX, 0, endX - startX, height);
+      }
+
+      ctx2d.strokeStyle = "rgba(176,148,255,0.9)";
+      ctx2d.lineWidth = 1.5;
+      ctx2d.setLineDash([5, 4]);
+      ctx2d.beginPath();
+      ctx2d.moveTo(startX, 0);
+      ctx2d.lineTo(startX, height);
+      if (marker.kind === "range") {
+        ctx2d.moveTo(endX, 0);
+        ctx2d.lineTo(endX, height);
+      }
+      ctx2d.stroke();
+      ctx2d.setLineDash([]);
+
+      ctx2d.font = "bold 10px system-ui";
+      const label = marker.kind === "range"
+        ? `${marker.name}  m${marker.startMeasure}–${marker.endMeasure}`
+        : (marker.name || "Marker");
+      const textWidth = Math.min(ctx2d.measureText(label).width + 10, 160);
+      const labelCenter = marker.kind === "range" ? (startX + endX) / 2 : startX;
+      const labelX = clamp(labelCenter - textWidth / 2, 2, width - textWidth - 2);
+      ctx2d.fillStyle = "rgba(47,32,78,0.94)";
+      ctx2d.fillRect(labelX, height - 38, textWidth, 16);
+      ctx2d.fillStyle = "#e4d7ff";
+      ctx2d.textAlign = "center";
+      ctx2d.textBaseline = "middle";
+      ctx2d.fillText(label, labelX + textWidth / 2, height - 30);
+      ctx2d.textBaseline = "alphabetic";
+    });
+
     drawMarker(inX, "#48d597", "IN", height);
     drawMarker(outX, "#ffbd59", "OUT", height);
 
@@ -605,14 +753,10 @@
   }
 
   function syncMeasureInputsFromLoop(start, end) {
-    const bpm = Math.max(1, Number(bpmInput.value) || 120);
-    const beats = Math.max(1, Number(beatsInput.value) || 4);
-    const measureLength = beats * 60 / bpm;
-
-    startMeasureInput.value = Math.max(1, Math.floor(start / measureLength) + 1);
+    startMeasureInput.value = secondsToStartMeasure(start);
     endMeasureInput.value = Math.max(
       Number(startMeasureInput.value),
-      Math.ceil(end / measureLength)
+      secondsToEndMeasure(end)
     );
   }
 
@@ -643,6 +787,11 @@
       playButton.disabled = false;
       slatePlayButton.disabled = false;
       stopButton.disabled = true;
+      addMarkerButton.disabled = false;
+      addMeasureRangeButton.disabled = false;
+      currentFileName = file.name;
+      songMarkers = loadStoredMarkers(file.name);
+      renderMarkerList();
       status.textContent = `${file.name} — ${formatPosition(duration)} long`;
       refresh();
     } catch (error) {
@@ -689,6 +838,7 @@
     playbackStartedAt = audioContext.currentTime;
     pausedPosition = position;
     isPlaying = true;
+    loopWrapCount = 0;
 
     sourceNode.start(0, position);
     playButton.textContent = "Pause";
@@ -713,12 +863,307 @@
     stopSource();
     playButton.textContent = "Play loop";
     stopButton.disabled = true;
+    slateSessionActive = false;
+    loopWrapCount = 0;
     status.textContent = "Stopped.";
     refresh();
   }
 
+  function bumpTake(by = 1) {
+    $("takeInput").value = Math.max(1, Number($("takeInput").value) || 1) + by;
+    updateSlatePreview();
+  }
+
+  function completedLoopCount() {
+    if (!isPlaying || !audioContext) return 0;
+    const { start, end } = getLoopBounds();
+    const loopLength = end - start;
+    if (loopLength <= 0) return 0;
+    const elapsed = audioContext.currentTime - playbackStartedAt;
+    return Math.floor(((playbackOrigin - start) + elapsed) / loopLength);
+  }
+
+  function updateTakeFromLoop() {
+    if (!slateSessionActive || !isPlaying) return;
+    const wraps = completedLoopCount();
+    if (wraps <= loopWrapCount) return;
+    const extra = wraps - loopWrapCount;
+    loopWrapCount = wraps;
+    bumpTake(extra);
+  }
+
+  function currentLoopMarker() {
+    const startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
+    const endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
+    const rangeMatches = songMarkers.filter(marker => (
+      marker.kind === "range"
+      && marker.startMeasure === startMeasure
+      && marker.endMeasure === endMeasure
+    ));
+
+    if (activeLoopMarkerId) {
+      const preferred = rangeMatches.find(marker => marker.id === activeLoopMarkerId)
+        || songMarkers.find(marker => marker.id === activeLoopMarkerId);
+      if (preferred && (preferred.kind !== "range" || rangeMatches.includes(preferred))) {
+        return preferred;
+      }
+    }
+
+    return rangeMatches[0] || null;
+  }
+
+  function applyMarkerNameToScene(marker) {
+    if (!marker) return;
+    $("sceneInput").value = marker.name;
+    updateSlatePreview();
+  }
+
   function restartIfPlaying() {
     if (isPlaying) startPlayback(getLoopBounds().start);
+  }
+
+  function markerStorageKey(fileName) {
+    return `menzo-slate-markers:${fileName}`;
+  }
+
+  function loadStoredMarkers(fileName) {
+    try {
+      const raw = localStorage.getItem(markerStorageKey(fileName));
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(item => item && (item.kind === "range" || typeof item.seconds === "number"))
+        .map(item => {
+          if (item.kind === "range") {
+            const startMeasure = Math.max(1, Number(item.startMeasure) || 1);
+            const endMeasure = Math.max(startMeasure, Number(item.endMeasure) || startMeasure);
+            return {
+              id: String(item.id || `${Date.now()}-${Math.random()}`),
+              name: String(item.name || "Marker").trim() || "Marker",
+              kind: "range",
+              startMeasure,
+              endMeasure
+            };
+          }
+
+          return {
+            id: String(item.id || `${Date.now()}-${Math.random()}`),
+            name: String(item.name || "Marker").trim() || "Marker",
+            kind: "point",
+            seconds: clamp(Number(item.seconds) || 0, 0, duration)
+          };
+        })
+        .sort((a, b) => markerTimes(a).start - markerTimes(b).start);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveMarkers() {
+    if (!currentFileName) return;
+    localStorage.setItem(markerStorageKey(currentFileName), JSON.stringify(songMarkers));
+  }
+
+  function nextMarkerName() {
+    const typed = markerNameInput.value.trim();
+    if (typed) return typed;
+    let index = songMarkers.length + 1;
+    let name = `Marker ${index}`;
+    const used = new Set(songMarkers.map(marker => marker.name.toLowerCase()));
+    while (used.has(name.toLowerCase())) {
+      index += 1;
+      name = `Marker ${index}`;
+    }
+    return name;
+  }
+
+  function addMarkerAt(seconds, name) {
+    if (!audioBuffer) return;
+
+    const snapped = clamp(Math.round(seconds * fps()) / fps(), 0, duration);
+    const marker = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: (name || nextMarkerName()).trim() || "Marker",
+      kind: "point",
+      seconds: snapped
+    };
+    songMarkers.push(marker);
+    songMarkers.sort((a, b) => markerTimes(a).start - markerTimes(b).start);
+    saveMarkers();
+    renderMarkerList();
+    markerNameInput.value = "";
+    markerNameInput.focus();
+    status.textContent = `Added marker “${marker.name}”.`;
+    refresh();
+  }
+
+  function addMeasureRangeMarker() {
+    if (!audioBuffer) return;
+
+    const lastMeasure = maxMeasure();
+    let startMeasure = Math.max(1, Math.round(Number(markerStartMeasureInput.value) || 1));
+    let endMeasure = Math.max(1, Math.round(Number(markerEndMeasureInput.value) || startMeasure));
+    startMeasure = clamp(startMeasure, 1, lastMeasure);
+    endMeasure = clamp(endMeasure, 1, lastMeasure);
+    if (endMeasure < startMeasure) {
+      const swap = startMeasure;
+      startMeasure = endMeasure;
+      endMeasure = swap;
+    }
+
+    markerStartMeasureInput.value = startMeasure;
+    markerEndMeasureInput.value = endMeasure;
+
+    const marker = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: markerNameInput.value.trim() || `Measures ${startMeasure}–${endMeasure}`,
+      kind: "range",
+      startMeasure,
+      endMeasure
+    };
+    songMarkers.push(marker);
+    songMarkers.sort((a, b) => markerTimes(a).start - markerTimes(b).start);
+    saveMarkers();
+    renderMarkerList();
+    markerNameInput.value = "";
+    markerNameInput.focus();
+    status.textContent = `Added “${marker.name}” (measures ${startMeasure}–${endMeasure}).`;
+    refresh();
+  }
+
+  function switchToMeasuresMode() {
+    if (modeSelect.value === "measures") return;
+    const bounds = getLoopBounds();
+    modeSelect.value = "measures";
+    frameControls.classList.add("hidden");
+    measureControls.classList.remove("hidden");
+    syncMeasureInputsFromLoop(bounds.start, bounds.end);
+  }
+
+  function applyMarkerAs(id, bound) {
+    const marker = songMarkers.find(item => item.id === id);
+    if (!marker || !audioBuffer) return;
+
+    switchToMeasuresMode();
+    let startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
+    let endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
+    const times = markerTimes(marker);
+
+    if (bound === "loop" && marker.kind === "range") {
+      startMeasure = marker.startMeasure;
+      endMeasure = Math.max(marker.startMeasure, marker.endMeasure);
+    } else if (bound === "start") {
+      startMeasure = secondsToStartMeasure(times.start);
+      if (endMeasure < startMeasure) endMeasure = startMeasure;
+    } else {
+      endMeasure = Math.max(startMeasure, secondsToEndMeasure(times.end));
+    }
+
+    startMeasureInput.value = startMeasure;
+    endMeasureInput.value = endMeasure;
+    activeLoopMarkerId = bound === "loop" ? marker.id : activeLoopMarkerId;
+    status.textContent = bound === "loop"
+      ? `Loop set to “${marker.name}” (measures ${startMeasure}–${endMeasure}).`
+      : `Loop ${bound} set to “${marker.name}” (measure ${bound === "start" ? startMeasure : endMeasure}).`;
+    renderMarkerList();
+    refresh();
+    restartIfPlaying();
+  }
+
+  function renderMarkerList() {
+    markerList.replaceChildren();
+
+    if (!songMarkers.length) {
+      const empty = document.createElement("p");
+      empty.className = "marker-empty";
+      empty.textContent = audioBuffer
+        ? "No scene markers yet. Type a measure range, or add a point at the playhead."
+        : "Load an audio file to create scene markers.";
+      markerList.appendChild(empty);
+      return;
+    }
+
+    const bounds = getLoopBounds();
+    const rate = fps();
+
+    songMarkers.forEach(marker => {
+      const row = document.createElement("div");
+      row.className = "marker-row";
+
+      const name = document.createElement("span");
+      name.className = "marker-name";
+      name.textContent = marker.name;
+
+      const times = markerTimes(marker);
+      const meta = document.createElement("span");
+      meta.className = "marker-meta";
+      meta.textContent = marker.kind === "range"
+        ? `m${marker.startMeasure}–${marker.endMeasure}  ·  ${formatTimecode(times.start, rate)}`
+        : `${formatTimecode(times.start, rate)}  ·  frame ${Math.floor(times.start * rate)}`;
+
+      const buttons = [];
+
+      if (marker.kind === "range") {
+        const loopButton = document.createElement("button");
+        loopButton.type = "button";
+        loopButton.className = "primary";
+        loopButton.textContent = "Loop this";
+        loopButton.title = `Set the loop to ${marker.name}`;
+        const loopStart = Math.max(1, Number(startMeasureInput.value) || 1);
+        const loopEnd = Math.max(loopStart, Number(endMeasureInput.value) || loopStart);
+        if (marker.startMeasure === loopStart && marker.endMeasure === loopEnd) {
+          loopButton.classList.add("active-bound");
+        }
+        loopButton.addEventListener("click", () => applyMarkerAs(marker.id, "loop"));
+        buttons.push(loopButton);
+      }
+
+      const startButton = document.createElement("button");
+      startButton.type = "button";
+      startButton.textContent = "Start";
+      startButton.title = `Set loop start to ${marker.name}`;
+      if (Math.abs(times.start - bounds.start) < (1 / rate) / 2) {
+        startButton.classList.add("active-bound");
+      }
+      startButton.addEventListener("click", () => applyMarkerAs(marker.id, "start"));
+
+      const endButton = document.createElement("button");
+      endButton.type = "button";
+      endButton.textContent = "End";
+      endButton.title = `Set loop end to ${marker.name}`;
+      if (Math.abs(times.end - bounds.end) < (1 / rate) / 2) {
+        endButton.classList.add("active-bound");
+      }
+      endButton.addEventListener("click", () => applyMarkerAs(marker.id, "end"));
+      buttons.push(startButton, endButton);
+
+      const renameButton = document.createElement("button");
+      renameButton.type = "button";
+      renameButton.textContent = "Rename";
+      renameButton.addEventListener("click", () => {
+        const next = window.prompt("Marker name", marker.name);
+        if (next == null) return;
+        const trimmed = next.trim();
+        if (!trimmed) return;
+        marker.name = trimmed;
+        saveMarkers();
+        renderMarkerList();
+        refresh();
+      });
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => {
+        songMarkers = songMarkers.filter(item => item.id !== marker.id);
+        saveMarkers();
+        renderMarkerList();
+        refresh();
+      });
+
+      row.append(name, meta, ...buttons, renameButton, deleteButton);
+      markerList.appendChild(row);
+    });
   }
 
   function updateSlatePreview() {
@@ -768,20 +1213,26 @@
   async function clapAndPlay() {
     if (!audioBuffer) return;
 
+    const marker = currentLoopMarker();
+    applyMarkerNameToScene(marker);
+
     const syncPosition = getLoopBounds().start;
     const syncTimecode = formatTimecode(syncPosition, fps());
     const syncFrame = Math.floor(syncPosition * fps());
+    const sceneNote = marker ? `  |  Scene ${marker.name}` : "";
 
     $("previewSync").textContent = syncTimecode;
     $("slateSyncReadout").textContent =
-      `Slate sync: ${syncTimecode}  |  Frame ${syncFrame}`;
-    slateStatus.textContent =
-      `Slate marked at ${syncTimecode} (frame ${syncFrame}).`;
+      `Slate sync: ${syncTimecode}  |  Frame ${syncFrame}${sceneNote}`;
+    slateStatus.textContent = marker
+      ? `Slate marked at ${syncTimecode} (frame ${syncFrame}). Scene set to “${marker.name}”. Take will increase after each loop.`
+      : `Slate marked at ${syncTimecode} (frame ${syncFrame}). Take will increase after each loop.`;
 
     if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
 
+    slateSessionActive = true;
     playClapSound();
     await startPlayback(syncPosition);
   }
@@ -797,6 +1248,38 @@
   stopButton.addEventListener("click", () => {
     if (!audioBuffer) return;
     stopPlayback();
+  });
+
+  addMarkerButton.addEventListener("click", () => {
+    if (!audioBuffer) return;
+    addMarkerAt(currentPosition());
+  });
+
+  addMeasureRangeButton.addEventListener("click", addMeasureRangeMarker);
+
+  [markerStartMeasureInput, markerEndMeasureInput].forEach(input => {
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addMeasureRangeMarker();
+      }
+    });
+  });
+
+  markerNameInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (audioBuffer) addMarkerAt(currentPosition());
+    }
+  });
+
+  window.addEventListener("keydown", event => {
+    if (event.key !== "m" && event.key !== "M") return;
+    if (!audioBuffer) return;
+    const tag = (event.target && event.target.tagName) || "";
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    event.preventDefault();
+    addMarkerAt(currentPosition());
   });
 
   slatePlayButton.addEventListener("click", clapAndPlay);
@@ -823,6 +1306,7 @@
     if (measuresMode) syncMeasureInputsFromLoop(bounds.start, bounds.end);
     else syncFrameInputsFromLoop(bounds.start, bounds.end);
 
+    renderMarkerList();
     refresh();
   });
 
@@ -831,6 +1315,11 @@
     if (modeSelect.value === "frames") {
       syncFrameInputsFromLoop(bounds.start, bounds.end);
     }
+    if (/^\d+(?:\.\d+)?\s*fps$/i.test($("shotInput").value.trim())) {
+      $("shotInput").value = `${fpsSelect.value} fps`;
+      updateSlatePreview();
+    }
+    renderMarkerList();
     refresh();
   });
 
@@ -839,6 +1328,7 @@
     bpmInput, beatsInput, startMeasureInput, endMeasureInput
   ].forEach(input => {
     input.addEventListener("input", () => {
+      renderMarkerList();
       refresh();
       restartIfPlaying();
     });
@@ -859,11 +1349,37 @@
     const bounds = getLoopBounds();
     const inX = bounds.start / duration * rect.width;
     const outX = bounds.end / duration * rect.width;
+    const grab = 22;
 
-    if (Math.abs(x - inX) < Math.abs(x - outX) && Math.abs(x - inX) < 22) {
+    let namedHit = null;
+    let namedDistance = grab;
+    songMarkers.forEach(marker => {
+      const times = markerTimes(marker);
+      const points = marker.kind === "range"
+        ? [
+            { edge: "start", x: times.start / duration * rect.width },
+            { edge: "end", x: times.end / duration * rect.width }
+          ]
+        : [{ edge: "start", x: times.start / duration * rect.width }];
+
+      points.forEach(point => {
+        const distance = Math.abs(x - point.x);
+        if (distance < namedDistance) {
+          namedHit = { marker, edge: point.edge };
+          namedDistance = distance;
+        }
+      });
+    });
+
+    const inDist = Math.abs(x - inX);
+    const outDist = Math.abs(x - outX);
+
+    if (inDist < grab && inDist <= outDist && inDist <= namedDistance) {
       dragMarker = "in";
-    } else if (Math.abs(x - outX) < 22) {
+    } else if (outDist < grab && outDist <= namedDistance) {
       dragMarker = "out";
+    } else if (namedHit) {
+      dragMarker = `named:${namedHit.marker.id}:${namedHit.edge}`;
     } else {
       return;
     }
@@ -872,15 +1388,56 @@
     event.preventDefault();
   });
 
+  canvas.addEventListener("dblclick", event => {
+    if (!audioBuffer) return;
+    event.preventDefault();
+    addMarkerAt(canvasSecondsFromEvent(event));
+  });
+
   canvas.addEventListener("pointermove", event => {
     if (!dragMarker || !audioBuffer) return;
 
     const seconds = canvasSecondsFromEvent(event);
     const frame = Math.round(seconds * fps());
 
-    modeSelect.value = "frames";
-    frameControls.classList.remove("hidden");
-    measureControls.classList.add("hidden");
+    if (String(dragMarker).startsWith("named:")) {
+      const [, id, edge] = String(dragMarker).split(":");
+      const marker = songMarkers.find(item => item.id === id);
+      if (marker) {
+        if (marker.kind === "range") {
+          const measure = edge === "end"
+            ? secondsToEndMeasure(seconds)
+            : secondsToStartMeasure(seconds);
+          if (edge === "end") {
+            marker.endMeasure = Math.max(marker.startMeasure, measure);
+          } else {
+            marker.startMeasure = Math.min(measure, marker.endMeasure);
+          }
+        } else {
+          marker.seconds = seconds;
+        }
+        songMarkers.sort((a, b) => markerTimes(a).start - markerTimes(b).start);
+      }
+      refresh();
+      return;
+    }
+
+    if (modeSelect.value === "measures") {
+      let startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
+      let endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
+
+      if (dragMarker === "in") {
+        startMeasure = secondsToStartMeasure(seconds);
+        if (endMeasure < startMeasure) endMeasure = startMeasure;
+      } else {
+        endMeasure = Math.max(startMeasure, secondsToEndMeasure(seconds));
+      }
+
+      startMeasureInput.value = startMeasure;
+      endMeasureInput.value = endMeasure;
+      refresh();
+      return;
+    }
 
     let start = Math.max(0, Number(startFrameInput.value) || 0);
     let end = Math.max(start + 1, Number(endFrameInput.value) || start + 1);
@@ -898,7 +1455,14 @@
   });
 
   function endDrag() {
-    if (dragMarker) restartIfPlaying();
+    if (!dragMarker) return;
+    if (String(dragMarker).startsWith("named:")) {
+      saveMarkers();
+      renderMarkerList();
+    } else {
+      restartIfPlaying();
+      renderMarkerList();
+    }
     dragMarker = null;
   }
 
@@ -911,12 +1475,14 @@
   });
 
   function animationFrame() {
+    updateTakeFromLoop();
     updateReadouts();
     drawWaveform();
     requestAnimationFrame(animationFrame);
   }
 
   updateSlatePreview();
+  renderMarkerList();
   refresh();
   requestAnimationFrame(animationFrame);
 })();
