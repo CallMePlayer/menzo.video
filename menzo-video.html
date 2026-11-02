@@ -706,6 +706,17 @@
     refresh();
   }
 
+  function stopPlayback() {
+    const bounds = getLoopBounds();
+    pausedPosition = bounds.start;
+    isPlaying = false;
+    stopSource();
+    playButton.textContent = "Play loop";
+    stopButton.disabled = true;
+    status.textContent = "Stopped.";
+    refresh();
+  }
+
   function restartIfPlaying() {
     if (isPlaying) startPlayback(getLoopBounds().start);
   }
@@ -781,6 +792,11 @@
     if (!audioBuffer) return;
     if (isPlaying) pausePlayback();
     else startPlayback(pausedPosition);
+  });
+
+  stopButton.addEventListener("click", () => {
+    if (!audioBuffer) return;
+    stopPlayback();
   });
 
   slatePlayButton.addEventListener("click", clapAndPlay);
