@@ -1,2 +1,1 @@
-# menzo.video
-Menzo Video - Music Video Slate
+# Menzo Video - Music Video Slate
