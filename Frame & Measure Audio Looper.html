@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frame & Measure Audio Looper</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 15px/1.45 system-ui, sans-serif;
+      background: #11151b;
+      color: #edf2f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      max-width: 1050px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.45rem; margin: 0 0 18px; }
+
+    .panel {
+      background: #1b222c;
+      border: 1px solid #303a47;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: #c5d0dd;
+      font-size: .9rem;
+    }
+
+    input, select, button {
+      font: inherit;
+      color: #f4f7fb;
+      background: #111720;
+      border: 1px solid #465363;
+      border-radius: 7px;
+      padding: 8px 10px;
+    }
+
+    input[type="file"] { max-width: 100%; }
+    input[type="number"] { width: 112px; }
+    button { cursor: pointer; }
+    button:hover { background: #263241; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .hidden { display: none !important; }
+
+    .readouts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 12px;
+      color: #d6e0eb;
+    }
+
+    .readouts strong {
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #waveform {
+      width: 100%;
+      height: 260px;
+      display: block;
+      background: #0d1218;
+      border: 1px solid #354150;
+      border-radius: 8px;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .hint, #status {
+      color: #aebaca;
+      font-size: .88rem;
+      margin: 10px 0 0;
+    }
+
+    .marker-key {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: #c5d0dd;
+      font-size: .88rem;
+      margin-top: 10px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 14px; }
+      #waveform { height: 220px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Frame & Measure Audio Looper</h1>
+
+  <section class="panel">
+    <div class="controls">
+      <label>
+        MP3 file
+        <input id="fileInput" type="file" accept=".mp3,audio/mpeg,audio/*">
+      </label>
+
+      <label>
+        Frame rate
+        <select id="fpsSelect">
+          <option value="24">24 fps</option>
+          <option value="25">25 fps</option>
+          <option value="29.97">29.97 fps</option>
+          <option value="30" selected>30 fps</option>
+          <option value="60">60 fps</option>
+        </select>
+      </label>
+
+      <label>
+        Loop mode
+        <select id="modeSelect">
+          <option value="frames" selected>Frames</option>
+          <option value="measures">Measures</option>
+        </select>
+      </label>
+
+      <div id="frameControls" class="controls">
+        <label>
+          Start frame
+          <input id="startFrame" type="number" min="0" step="1" value="0">
+        </label>
+        <label>
+          End frame (exclusive)
+          <input id="endFrame" type="number" min="1" step="1" value="300">
+        </label>
+      </div>
+
+      <div id="measureControls" class="controls hidden">
+        <label>
+          BPM
+          <input id="bpmInput" type="number" min="1" step="0.1" value="120">
+        </label>
+        <label>
+          Beats per measure
+          <input id="beatsInput" type="number" min="1" step="1" value="4">
+        </label>
+        <label>
+          Start measure
+          <input id="startMeasure" type="number" min="1" step="1" value="1">
+        </label>
+        <label>
+          End measure (inclusive)
+          <input id="endMeasure" type="number" min="1" step="1" value="4">
+        </label>
+      </div>
+
+      <button id="playButton" disabled>Play loop</button>
+      <button id="stopButton" disabled>Stop</button>
+    </div>
+
+    <div class="readouts">
+      <span>Timecode: <strong id="timecodeReadout">00:00:00</strong></span>
+      <span>Frame: <strong id="frameReadout">0</strong></span>
+      <span>Position: <strong id="positionReadout">00:00.000</strong></span>
+    </div>
+    <p id="status">Load an audio file to begin.</p>
+  </section>
+
+  <section class="panel">
+    <canvas id="waveform" aria-label="Audio waveform and loop markers"></canvas>
+    <div class="marker-key">
+      <span><i class="dot" style="background:#48d597"></i>Loop in</span>
+      <span><i class="dot" style="background:#ffbd59"></i>Loop out</span>
+      <span>Drag either marker to move it; dragging switches to Frames mode.</span>
+    </div>
+    <p class="hint">
+      In Frames mode, the loop includes the start frame up to—but not including—the end frame.
+      In Measures mode, it starts at the start measure and ends at the start of the measure
+      after the selected end measure.
+    </p>
+  </section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const fileInput = $("fileInput");
+  const fpsSelect = $("fpsSelect");
+  const modeSelect = $("modeSelect");
+  const startFrameInput = $("startFrame");
+  const endFrameInput = $("endFrame");
+  const bpmInput = $("bpmInput");
+  const beatsInput = $("beatsInput");
+  const startMeasureInput = $("startMeasure");
+  const endMeasureInput = $("endMeasure");
+  const frameControls = $("frameControls");
+  const measureControls = $("measureControls");
+  const playButton = $("playButton");
+  const stopButton = $("stopButton");
+  const status = $("status");
+  const canvas = $("waveform");
+  const ctx2d = canvas.getContext("2d");
+
+  let audioContext = null;
+  let audioBuffer = null;
+  let sourceNode = null;
+  let isPlaying = false;
+  let playbackStartedAt = 0;
+  let playbackOrigin = 0;
+  let pausedPosition = 0;
+  let waveformPeaks = [];
+  let dragMarker = null;
+  let duration = 0;
+
+  function fps() {
+    return Number(fpsSelect.value);
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function formatTimecode(seconds, rate) {
+    seconds = Math.max(0, seconds || 0);
+    const wholeSeconds = Math.floor(seconds);
+    const minutes = Math.floor(wholeSeconds / 60);
+    const secs = wholeSeconds % 60;
+
+    // Timecode frame field uses nominal FPS: 30 for 29.97.
+    const nominalFps = Math.round(rate);
+    const frames = Math.min(
+      nominalFps - 1,
+      Math.floor((seconds - wholeSeconds) * nominalFps)
+    );
+
+    return [minutes, secs, frames]
+      .map(value => String(value).padStart(2, "0"))
+      .join(":");
+  }
+
+  function formatPosition(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(3).padStart(6, "0");
+    return `${String(minutes).padStart(2, "0")}:${secs}`;
+  }
+
+  function getLoopBounds() {
+    if (!audioBuffer) return { start: 0, end: 0 };
+
+    let start;
+    let end;
+
+    if (modeSelect.value === "measures") {
+      const bpm = Math.max(1, Number(bpmInput.value) || 120);
+      const beats = Math.max(1, Number(beatsInput.value) || 4);
+      const secondsPerMeasure = beats * 60 / bpm;
+      const startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
+      const endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
+
+      start = (startMeasure - 1) * secondsPerMeasure;
+      end = endMeasure * secondsPerMeasure;
+    } else {
+      const startFrame = Math.max(0, Number(startFrameInput.value) || 0);
+      const endFrame = Math.max(startFrame + 1, Number(endFrameInput.value) || startFrame + 1);
+
+      start = startFrame / fps();
+      end = endFrame / fps();
+    }
+
+    start = clamp(start, 0, duration);
+    end = clamp(end, 0, duration);
+
+    if (end <= start && duration > 0) {
+      end = Math.min(duration, start + 1 / fps());
+      if (end <= start) start = Math.max(0, end - 1 / fps());
+    }
+
+    return { start, end };
+  }
+
+  function currentPosition() {
+    if (!isPlaying || !audioContext) return pausedPosition;
+
+    const { start, end } = getLoopBounds();
+    const loopLength = end - start;
+    if (loopLength <= 0) return start;
+
+    const elapsed = audioContext.currentTime - playbackStartedAt;
+    return start + (((playbackOrigin - start) + elapsed) % loopLength);
+  }
+
+  function updateReadouts() {
+    const position = currentPosition();
+    const currentFrame = Math.floor(position * fps());
+
+    $("timecodeReadout").textContent = formatTimecode(position, fps());
+    $("frameReadout").textContent = String(currentFrame);
+    $("positionReadout").textContent = formatPosition(position);
+  }
+
+  function ensureCanvasSize() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { width: rect.width, height: rect.height };
+  }
+
+  function drawWaveform() {
+    const { width, height } = ensureCanvasSize();
+    ctx2d.clearRect(0, 0, width, height);
+    ctx2d.fillStyle = "#0d1218";
+    ctx2d.fillRect(0, 0, width, height);
+
+    if (!audioBuffer || !duration) {
+      ctx2d.fillStyle = "#aebaca";
+      ctx2d.font = "14px system-ui";
+      ctx2d.textAlign = "center";
+      ctx2d.fillText("Load an audio file to display its waveform", width / 2, height / 2);
+      return;
+    }
+
+    const mid = height / 2;
+    const { start, end } = getLoopBounds();
+    const startX = start / duration * width;
+    const endX = end / duration * width;
+
+    // Shade the portion outside the loop.
+    ctx2d.fillStyle = "rgba(255,255,255,0.055)";
+    ctx2d.fillRect(0, 0, startX, height);
+    ctx2d.fillRect(endX, 0, width - endX, height);
+
+    // Waveform peaks.
+    ctx2d.strokeStyle = "#71b7ff";
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    const step = width / Math.max(1, waveformPeaks.length);
+
+    waveformPeaks.forEach((peak, index) => {
+      const x = index * step;
+      const amplitude = peak * height * 0.42;
+      ctx2d.moveTo(x, mid - amplitude);
+      ctx2d.lineTo(x, mid + amplitude);
+    });
+    ctx2d.stroke();
+
+    // Loop markers.
+    drawMarker(startX, "#48d597", "IN");
+    drawMarker(endX, "#ffbd59", "OUT");
+
+    // Playhead and its timecode label.
+    const position = currentPosition();
+    const playheadX = clamp(position / duration * width, 0, width);
+
+    ctx2d.strokeStyle = "#ff5c75";
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(playheadX, 0);
+    ctx2d.lineTo(playheadX, height);
+    ctx2d.stroke();
+
+    const label = formatTimecode(position, fps());
+    ctx2d.font = "bold 12px system-ui";
+    const labelWidth = ctx2d.measureText(label).width + 12;
+    const labelX = clamp(playheadX + 7, 2, width - labelWidth - 2);
+
+    ctx2d.fillStyle = "#a4263a";
+    ctx2d.fillRect(labelX, 5, labelWidth, 22);
+    ctx2d.fillStyle = "#fff";
+    ctx2d.textAlign = "left";
+    ctx2d.textBaseline = "middle";
+    ctx2d.fillText(label, labelX + 6, 16);
+    ctx2d.textBaseline = "alphabetic";
+  }
+
+  function drawMarker(x, color, label) {
+    const { height } = ensureCanvasSize();
+
+    ctx2d.strokeStyle = color;
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(x, 0);
+    ctx2d.lineTo(x, height);
+    ctx2d.stroke();
+
+    ctx2d.fillStyle = color;
+    ctx2d.beginPath();
+    ctx2d.moveTo(x - 7, 0);
+    ctx2d.lineTo(x + 7, 0);
+    ctx2d.lineTo(x, 11);
+    ctx2d.closePath();
+    ctx2d.fill();
+
+    ctx2d.font = "bold 10px system-ui";
+    ctx2d.textAlign = "center";
+    ctx2d.fillText(label, x, height - 7);
+  }
+
+  function createPeaks(buffer) {
+    const data = buffer.getChannelData(0);
+    const count = Math.min(2400, Math.max(400, Math.floor(canvas.clientWidth * 2)));
+    const samplesPerPeak = Math.max(1, Math.floor(data.length / count));
+    const peaks = [];
+
+    for (let i = 0; i < count; i++) {
+      const from = i * samplesPerPeak;
+      const to = Math.min(data.length, from + samplesPerPeak);
+      let max = 0;
+
+      for (let j = from; j < to; j++) {
+        const value = Math.abs(data[j]);
+        if (value > max) max = value;
+      }
+      peaks.push(max);
+    }
+
+    return peaks;
+  }
+
+  function syncFrameInputsFromLoop(start, end) {
+    const rate = fps();
+    startFrameInput.value = Math.max(0, Math.round(start * rate));
+    endFrameInput.value = Math.max(
+      Number(startFrameInput.value) + 1,
+      Math.round(end * rate)
+    );
+  }
+
+  function syncMeasureInputsFromLoop(start, end) {
+    const bpm = Math.max(1, Number(bpmInput.value) || 120);
+    const beats = Math.max(1, Number(beatsInput.value) || 4);
+    const measureLength = beats * 60 / bpm;
+
+    startMeasureInput.value = Math.max(1, Math.floor(start / measureLength) + 1);
+    endMeasureInput.value = Math.max(
+      Number(startMeasureInput.value),
+      Math.ceil(end / measureLength)
+    );
+  }
+
+  function refresh() {
+    updateReadouts();
+    drawWaveform();
+  }
+
+  async function loadFile(file) {
+    if (!file) return;
+
+    try {
+      status.textContent = "Loading audio…";
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      const bytes = await file.arrayBuffer();
+      audioBuffer = await audioContext.decodeAudioData(bytes);
+      duration = audioBuffer.duration;
+      waveformPeaks = createPeaks(audioBuffer);
+      pausedPosition = 0;
+
+      const defaultEnd = Math.min(duration, 10);
+      startFrameInput.value = 0;
+      endFrameInput.value = Math.max(1, Math.floor(defaultEnd * fps()));
+
+      playButton.disabled = false;
+      stopButton.disabled = true;
+      status.textContent = `${file.name} — ${formatPosition(duration)} long`;
+      refresh();
+    } catch (error) {
+      console.error(error);
+      status.textContent = "Could not load this audio file. Try an MP3 or another supported audio format.";
+    }
+  }
+
+  function stopSource() {
+    if (sourceNode) {
+      try { sourceNode.stop(); } catch (_) {}
+      try { sourceNode.disconnect(); } catch (_) {}
+      sourceNode = null;
+    }
+  }
+
+  async function startPlayback(position) {
+    if (!audioBuffer) return;
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    stopSource();
+
+    const bounds = getLoopBounds();
+    const loopLength = bounds.end - bounds.start;
+    if (loopLength <= 0) {
+      status.textContent = "The loop region is too short.";
+      return;
+    }
+
+    position = clamp(position, bounds.start, Math.max(bounds.start, bounds.end - 0.001));
+
+    sourceNode = audioContext.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+    sourceNode.loop = true;
+    sourceNode.loopStart = bounds.start;
+    sourceNode.loopEnd = bounds.end;
+    sourceNode.connect(audioContext.destination);
+
+    playbackOrigin = position;
+    playbackStartedAt = audioContext.currentTime;
+    pausedPosition = position;
+    isPlaying = true;
+
+    sourceNode.start(0, position);
+    playButton.textContent = "Pause";
+    stopButton.disabled = false;
+    status.textContent = "Playing loop.";
+    refresh();
+  }
+
+  function pausePlayback() {
+    pausedPosition = currentPosition();
+    isPlaying = false;
+    stopSource();
+    playButton.textContent = "Play loop";
+    status.textContent = "Paused.";
+    refresh();
+  }
+
+  function restartIfPlaying() {
+    if (isPlaying) {
+      const { start } = getLoopBounds();
+      startPlayback(start);
+    }
+  }
+
+  fileInput.addEventListener("change", event => {
+    loadFile(event.target.files[0]);
+  });
+
+  playButton.addEventListener("click", () => {
+    if (!audioBuffer) return;
+    if (isPlaying) pausePlayback();
+    else startPlayback(pausedPosition);
+  });
+
+  stopButton.addEventListener("click", () => {
+    isPlaying = false;
+    stopSource();
+    pausedPosition = 0;
+    playButton.textContent = "Play loop";
+    stopButton.disabled = true;
+    status.textContent = "Stopped.";
+    refresh();
+  });
+
+  modeSelect.addEventListener("change", () => {
+    const bounds = getLoopBounds();
+    const measuresMode = modeSelect.value === "measures";
+
+    frameControls.classList.toggle("hidden", measuresMode);
+    measureControls.classList.toggle("hidden", !measuresMode);
+
+    if (measuresMode) syncMeasureInputsFromLoop(bounds.start, bounds.end);
+    else syncFrameInputsFromLoop(bounds.start, bounds.end);
+
+    refresh();
+  });
+
+  fpsSelect.addEventListener("change", () => {
+    const bounds = getLoopBounds();
+    if (modeSelect.value === "frames") {
+      syncFrameInputsFromLoop(bounds.start, bounds.end);
+    }
+    refresh();
+  });
+
+  [
+    startFrameInput, endFrameInput,
+    bpmInput, beatsInput, startMeasureInput, endMeasureInput
+  ].forEach(input => {
+    input.addEventListener("input", () => {
+      refresh();
+      restartIfPlaying();
+    });
+  });
+
+  function canvasSecondsFromEvent(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = clamp(event.clientX - rect.left, 0, rect.width);
+    const rawSeconds = duration * x / rect.width;
+    return clamp(Math.round(rawSeconds * fps()) / fps(), 0, duration);
+  }
+
+  canvas.addEventListener("pointerdown", event => {
+    if (!audioBuffer) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const bounds = getLoopBounds();
+    const inX = bounds.start / duration * rect.width;
+    const outX = bounds.end / duration * rect.width;
+
+    if (Math.abs(x - inX) < Math.abs(x - outX) && Math.abs(x - inX) < 22) {
+      dragMarker = "in";
+    } else if (Math.abs(x - outX) < 22) {
+      dragMarker = "out";
+    } else {
+      return;
+    }
+
+    canvas.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  canvas.addEventListener("pointermove", event => {
+    if (!dragMarker || !audioBuffer) return;
+
+    const seconds = canvasSecondsFromEvent(event);
+    const frame = Math.round(seconds * fps());
+
+    // Dragging a marker switches to Frames mode.
+    if (modeSelect.value !== "frames") {
+      modeSelect.value = "frames";
+      frameControls.classList.remove("hidden");
+      measureControls.classList.add("hidden");
+    }
+
+    let start = Math.max(0, Number(startFrameInput.value) || 0);
+    let end = Math.max(start + 1, Number(endFrameInput.value) || start + 1);
+    const maxFrame = Math.max(1, Math.floor(duration * fps()));
+
+    if (dragMarker === "in") {
+      start = clamp(frame, 0, Math.min(maxFrame - 1, end - 1));
+    } else {
+      end = clamp(frame, start + 1, maxFrame);
+    }
+
+    startFrameInput.value = start;
+    endFrameInput.value = end;
+    refresh();
+  });
+
+  function endDrag() {
+    if (dragMarker) restartIfPlaying();
+    dragMarker = null;
+  }
+
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  window.addEventListener("resize", () => {
+    if (audioBuffer) waveformPeaks = createPeaks(audioBuffer);
+    refresh();
+  });
+
+  function animationFrame() {
+    updateReadouts();
+    drawWaveform();
+    requestAnimationFrame(animationFrame);
+  }
+
+  refresh();
+  requestAnimationFrame(animationFrame);
+})();
+</script>
+</body>
+</html>
