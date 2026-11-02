@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Frame & Measure Audio Looper</title>
+  <title>Menzo Video - Music Video Slate</title>
   <style>
     :root {
       color-scheme: dark;
@@ -15,12 +15,13 @@
     * { box-sizing: border-box; }
 
     body {
-      max-width: 1050px;
+      max-width: 1100px;
       margin: 0 auto;
       padding: 24px;
     }
 
-    h1 { font-size: 1.45rem; margin: 0 0 18px; }
+    h1 { font-size: 1.5rem; margin: 0 0 18px; }
+    h2 { font-size: 1.1rem; margin: 0 0 14px; }
 
     .panel {
       background: #1b222c;
@@ -53,12 +54,22 @@
       padding: 8px 10px;
     }
 
-    input[type="file"] { max-width: 100%; }
     input[type="number"] { width: 112px; }
+    input[type="text"] { min-width: 140px; }
+    input[type="date"] { min-width: 145px; }
+    input[type="file"] { max-width: 100%; }
+
     button { cursor: pointer; }
     button:hover { background: #263241; }
     button:disabled { opacity: .5; cursor: not-allowed; }
 
+    .primary {
+      background: #a4263a;
+      border-color: #e15569;
+      font-weight: 700;
+    }
+
+    .primary:hover { background: #c33249; }
     .hidden { display: none !important; }
 
     .readouts {
@@ -76,7 +87,7 @@
 
     #waveform {
       width: 100%;
-      height: 260px;
+      height: 250px;
       display: block;
       background: #0d1218;
       border: 1px solid #354150;
@@ -85,7 +96,7 @@
       cursor: crosshair;
     }
 
-    .hint, #status {
+    .hint, #status, #slateStatus {
       color: #aebaca;
       font-size: .88rem;
       margin: 10px 0 0;
@@ -108,14 +119,160 @@
       margin-right: 5px;
     }
 
+    /* Slate preview */
+    .slate-board {
+      max-width: 720px;
+      overflow: hidden;
+      border: 2px solid #d8dde3;
+      border-radius: 8px;
+      background: #f1f1ed;
+      color: #17191c;
+      margin: 16px 0 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    }
+
+    .clapper-top {
+      height: 40px;
+      border-bottom: 3px solid #16181b;
+      background: repeating-linear-gradient(
+        135deg,
+        #f5f5f0 0,
+        #f5f5f0 24px,
+        #17191c 24px,
+        #17191c 48px
+      );
+    }
+
+    .slate-title {
+      padding: 12px 16px 8px;
+      font-size: 1.05rem;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .slate-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 2px solid #17191c;
+    }
+
+    .slate-cell {
+      min-height: 64px;
+      padding: 8px 12px;
+      border-right: 1px solid #777;
+      border-bottom: 1px solid #777;
+    }
+
+    .slate-cell:nth-child(3n) { border-right: 0; }
+
+    .slate-label {
+      display: block;
+      color: #565b60;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .slate-value {
+      display: block;
+      overflow: hidden;
+      font-size: 1.05rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .slate-sync {
+      padding: 8px 12px;
+      border-top: 2px solid #17191c;
+      font-size: .82rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
     @media (max-width: 600px) {
       body { padding: 14px; }
-      #waveform { height: 220px; }
+      #waveform { height: 210px; }
+      .slate-cell { min-height: 56px; padding: 7px; }
+      .slate-value { font-size: .92rem; }
     }
   </style>
 </head>
 <body>
-  <h1>Frame & Measure Audio Looper</h1>
+  <h1>Menzo Video - Music Video Slate</h1>
+
+  <section class="panel">
+    <h2>Film slate</h2>
+
+    <div class="controls">
+      <label>
+        Production
+        <input id="productionInput" type="text" value="Menzo Video">
+      </label>
+      <label>
+        Scene
+        <input id="sceneInput" type="text" value="1">
+      </label>
+      <label>
+        Shot
+        <input id="shotInput" type="text" value="1">
+      </label>
+      <label>
+        Take
+        <input id="takeInput" type="number" min="1" step="1" value="1">
+      </label>
+      <label>
+        Director
+        <input id="directorInput" type="text" placeholder="Director name">
+      </label>
+      <label>
+        Date
+        <input id="dateInput" type="date">
+      </label>
+    </div>
+
+    <div class="slate-board" aria-label="Film slate preview">
+      <div class="clapper-top"></div>
+      <div class="slate-title" id="previewProduction">MENZO VIDEO</div>
+
+      <div class="slate-grid">
+        <div class="slate-cell">
+          <span class="slate-label">Scene</span>
+          <span class="slate-value" id="previewScene">1</span>
+        </div>
+        <div class="slate-cell">
+          <span class="slate-label">Shot</span>
+          <span class="slate-value" id="previewShot">1</span>
+        </div>
+        <div class="slate-cell">
+          <span class="slate-label">Take</span>
+          <span class="slate-value" id="previewTake">1</span>
+        </div>
+        <div class="slate-cell">
+          <span class="slate-label">Director</span>
+          <span class="slate-value" id="previewDirector">—</span>
+        </div>
+        <div class="slate-cell">
+          <span class="slate-label">Date</span>
+          <span class="slate-value" id="previewDate">—</span>
+        </div>
+        <div class="slate-cell">
+          <span class="slate-label">Audio sync</span>
+          <span class="slate-value" id="previewSync">Not marked</span>
+        </div>
+      </div>
+
+      <div class="slate-sync" id="slateSyncReadout">Slate sync: Not marked</div>
+    </div>
+
+    <div class="controls">
+      <button id="slatePlayButton" class="primary" disabled>CLAP &amp; PLAY LOOP</button>
+      <button id="nextTakeButton">Next take</button>
+    </div>
+    <p id="slateStatus">Load an audio file, then clap to mark and play the loop.</p>
+  </section>
 
   <section class="panel">
     <div class="controls">
@@ -187,11 +344,13 @@
 
   <section class="panel">
     <canvas id="waveform" aria-label="Audio waveform and loop markers"></canvas>
+
     <div class="marker-key">
       <span><i class="dot" style="background:#48d597"></i>Loop in</span>
       <span><i class="dot" style="background:#ffbd59"></i>Loop out</span>
-      <span>Drag either marker to move it; dragging switches to Frames mode.</span>
+      <span>Drag a marker to move it; dragging switches to Frames mode.</span>
     </div>
+
     <p class="hint">
       In Frames mode, the loop includes the start frame up to—but not including—the end frame.
       In Measures mode, it starts at the start measure and ends at the start of the measure
@@ -216,7 +375,9 @@
   const measureControls = $("measureControls");
   const playButton = $("playButton");
   const stopButton = $("stopButton");
+  const slatePlayButton = $("slatePlayButton");
   const status = $("status");
+  const slateStatus = $("slateStatus");
   const canvas = $("waveform");
   const ctx2d = canvas.getContext("2d");
 
@@ -244,8 +405,6 @@
     const wholeSeconds = Math.floor(seconds);
     const minutes = Math.floor(wholeSeconds / 60);
     const secs = wholeSeconds % 60;
-
-    // Timecode frame field uses nominal FPS: 30 for 29.97.
     const nominalFps = Math.round(rate);
     const frames = Math.min(
       nominalFps - 1,
@@ -266,21 +425,26 @@
   function getLoopBounds() {
     if (!audioBuffer) return { start: 0, end: 0 };
 
-    let start;
-    let end;
+    let start, end;
 
     if (modeSelect.value === "measures") {
       const bpm = Math.max(1, Number(bpmInput.value) || 120);
       const beats = Math.max(1, Number(beatsInput.value) || 4);
-      const secondsPerMeasure = beats * 60 / bpm;
+      const measureLength = beats * 60 / bpm;
       const startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
-      const endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
+      const endMeasure = Math.max(
+        startMeasure,
+        Number(endMeasureInput.value) || startMeasure
+      );
 
-      start = (startMeasure - 1) * secondsPerMeasure;
-      end = endMeasure * secondsPerMeasure;
+      start = (startMeasure - 1) * measureLength;
+      end = endMeasure * measureLength;
     } else {
       const startFrame = Math.max(0, Number(startFrameInput.value) || 0);
-      const endFrame = Math.max(startFrame + 1, Number(endFrameInput.value) || startFrame + 1);
+      const endFrame = Math.max(
+        startFrame + 1,
+        Number(endFrameInput.value) || startFrame + 1
+      );
 
       start = startFrame / fps();
       end = endFrame / fps();
@@ -310,10 +474,8 @@
 
   function updateReadouts() {
     const position = currentPosition();
-    const currentFrame = Math.floor(position * fps());
-
     $("timecodeReadout").textContent = formatTimecode(position, fps());
-    $("frameReadout").textContent = String(currentFrame);
+    $("frameReadout").textContent = String(Math.floor(position * fps()));
     $("positionReadout").textContent = formatPosition(position);
   }
 
@@ -332,76 +494,7 @@
     return { width: rect.width, height: rect.height };
   }
 
-  function drawWaveform() {
-    const { width, height } = ensureCanvasSize();
-    ctx2d.clearRect(0, 0, width, height);
-    ctx2d.fillStyle = "#0d1218";
-    ctx2d.fillRect(0, 0, width, height);
-
-    if (!audioBuffer || !duration) {
-      ctx2d.fillStyle = "#aebaca";
-      ctx2d.font = "14px system-ui";
-      ctx2d.textAlign = "center";
-      ctx2d.fillText("Load an audio file to display its waveform", width / 2, height / 2);
-      return;
-    }
-
-    const mid = height / 2;
-    const { start, end } = getLoopBounds();
-    const startX = start / duration * width;
-    const endX = end / duration * width;
-
-    // Shade the portion outside the loop.
-    ctx2d.fillStyle = "rgba(255,255,255,0.055)";
-    ctx2d.fillRect(0, 0, startX, height);
-    ctx2d.fillRect(endX, 0, width - endX, height);
-
-    // Waveform peaks.
-    ctx2d.strokeStyle = "#71b7ff";
-    ctx2d.lineWidth = 1;
-    ctx2d.beginPath();
-    const step = width / Math.max(1, waveformPeaks.length);
-
-    waveformPeaks.forEach((peak, index) => {
-      const x = index * step;
-      const amplitude = peak * height * 0.42;
-      ctx2d.moveTo(x, mid - amplitude);
-      ctx2d.lineTo(x, mid + amplitude);
-    });
-    ctx2d.stroke();
-
-    // Loop markers.
-    drawMarker(startX, "#48d597", "IN");
-    drawMarker(endX, "#ffbd59", "OUT");
-
-    // Playhead and its timecode label.
-    const position = currentPosition();
-    const playheadX = clamp(position / duration * width, 0, width);
-
-    ctx2d.strokeStyle = "#ff5c75";
-    ctx2d.lineWidth = 2;
-    ctx2d.beginPath();
-    ctx2d.moveTo(playheadX, 0);
-    ctx2d.lineTo(playheadX, height);
-    ctx2d.stroke();
-
-    const label = formatTimecode(position, fps());
-    ctx2d.font = "bold 12px system-ui";
-    const labelWidth = ctx2d.measureText(label).width + 12;
-    const labelX = clamp(playheadX + 7, 2, width - labelWidth - 2);
-
-    ctx2d.fillStyle = "#a4263a";
-    ctx2d.fillRect(labelX, 5, labelWidth, 22);
-    ctx2d.fillStyle = "#fff";
-    ctx2d.textAlign = "left";
-    ctx2d.textBaseline = "middle";
-    ctx2d.fillText(label, labelX + 6, 16);
-    ctx2d.textBaseline = "alphabetic";
-  }
-
-  function drawMarker(x, color, label) {
-    const { height } = ensureCanvasSize();
-
+  function drawMarker(x, color, label, height) {
     ctx2d.strokeStyle = color;
     ctx2d.lineWidth = 2;
     ctx2d.beginPath();
@@ -422,6 +515,67 @@
     ctx2d.fillText(label, x, height - 7);
   }
 
+  function drawWaveform() {
+    const { width, height } = ensureCanvasSize();
+    ctx2d.clearRect(0, 0, width, height);
+    ctx2d.fillStyle = "#0d1218";
+    ctx2d.fillRect(0, 0, width, height);
+
+    if (!audioBuffer || !duration) {
+      ctx2d.fillStyle = "#aebaca";
+      ctx2d.font = "14px system-ui";
+      ctx2d.textAlign = "center";
+      ctx2d.fillText("Load an audio file to display its waveform", width / 2, height / 2);
+      return;
+    }
+
+    const mid = height / 2;
+    const bounds = getLoopBounds();
+    const inX = bounds.start / duration * width;
+    const outX = bounds.end / duration * width;
+
+    ctx2d.fillStyle = "rgba(255,255,255,0.055)";
+    ctx2d.fillRect(0, 0, inX, height);
+    ctx2d.fillRect(outX, 0, width - outX, height);
+
+    ctx2d.strokeStyle = "#71b7ff";
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+
+    const step = width / Math.max(1, waveformPeaks.length);
+    waveformPeaks.forEach((peak, index) => {
+      const x = index * step;
+      const amplitude = peak * height * 0.42;
+      ctx2d.moveTo(x, mid - amplitude);
+      ctx2d.lineTo(x, mid + amplitude);
+    });
+    ctx2d.stroke();
+
+    drawMarker(inX, "#48d597", "IN", height);
+    drawMarker(outX, "#ffbd59", "OUT", height);
+
+    const playheadX = clamp(currentPosition() / duration * width, 0, width);
+    ctx2d.strokeStyle = "#ff5c75";
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(playheadX, 0);
+    ctx2d.lineTo(playheadX, height);
+    ctx2d.stroke();
+
+    const label = formatTimecode(currentPosition(), fps());
+    ctx2d.font = "bold 12px system-ui";
+    const labelWidth = ctx2d.measureText(label).width + 12;
+    const labelX = clamp(playheadX + 7, 2, width - labelWidth - 2);
+
+    ctx2d.fillStyle = "#a4263a";
+    ctx2d.fillRect(labelX, 5, labelWidth, 22);
+    ctx2d.fillStyle = "#fff";
+    ctx2d.textAlign = "left";
+    ctx2d.textBaseline = "middle";
+    ctx2d.fillText(label, labelX + 6, 16);
+    ctx2d.textBaseline = "alphabetic";
+  }
+
   function createPeaks(buffer) {
     const data = buffer.getChannelData(0);
     const count = Math.min(2400, Math.max(400, Math.floor(canvas.clientWidth * 2)));
@@ -434,8 +588,7 @@
       let max = 0;
 
       for (let j = from; j < to; j++) {
-        const value = Math.abs(data[j]);
-        if (value > max) max = value;
+        max = Math.max(max, Math.abs(data[j]));
       }
       peaks.push(max);
     }
@@ -444,11 +597,10 @@
   }
 
   function syncFrameInputsFromLoop(start, end) {
-    const rate = fps();
-    startFrameInput.value = Math.max(0, Math.round(start * rate));
+    startFrameInput.value = Math.max(0, Math.round(start * fps()));
     endFrameInput.value = Math.max(
       Number(startFrameInput.value) + 1,
-      Math.round(end * rate)
+      Math.round(end * fps())
     );
   }
 
@@ -474,6 +626,7 @@
 
     try {
       status.textContent = "Loading audio…";
+
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
@@ -484,11 +637,11 @@
       waveformPeaks = createPeaks(audioBuffer);
       pausedPosition = 0;
 
-      const defaultEnd = Math.min(duration, 10);
       startFrameInput.value = 0;
-      endFrameInput.value = Math.max(1, Math.floor(defaultEnd * fps()));
+      endFrameInput.value = Math.max(1, Math.floor(Math.min(duration, 10) * fps()));
 
       playButton.disabled = false;
+      slatePlayButton.disabled = false;
       stopButton.disabled = true;
       status.textContent = `${file.name} — ${formatPosition(duration)} long`;
       refresh();
@@ -517,6 +670,7 @@
 
     const bounds = getLoopBounds();
     const loopLength = bounds.end - bounds.start;
+
     if (loopLength <= 0) {
       status.textContent = "The loop region is too short.";
       return;
@@ -553,15 +707,75 @@
   }
 
   function restartIfPlaying() {
-    if (isPlaying) {
-      const { start } = getLoopBounds();
-      startPlayback(start);
-    }
+    if (isPlaying) startPlayback(getLoopBounds().start);
   }
 
-  fileInput.addEventListener("change", event => {
-    loadFile(event.target.files[0]);
-  });
+  function updateSlatePreview() {
+    const production = $("productionInput").value.trim() || "—";
+    const scene = $("sceneInput").value.trim() || "—";
+    const shot = $("shotInput").value.trim() || "—";
+    const take = Math.max(1, Number($("takeInput").value) || 1);
+    const director = $("directorInput").value.trim() || "—";
+    const date = $("dateInput").value || "—";
+
+    $("previewProduction").textContent = production;
+    $("previewScene").textContent = scene;
+    $("previewShot").textContent = shot;
+    $("previewTake").textContent = String(take);
+    $("previewDirector").textContent = director;
+    $("previewDate").textContent = date;
+  }
+
+  function playClapSound() {
+    if (!audioContext) return;
+
+    const sampleRate = audioContext.sampleRate;
+    const length = Math.floor(sampleRate * 0.12);
+    const buffer = audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const fade = Math.exp(-i / (sampleRate * 0.018));
+      data[i] = (Math.random() * 2 - 1) * fade;
+    }
+
+    const noise = audioContext.createBufferSource();
+    const filter = audioContext.createBiquadFilter();
+    const gain = audioContext.createGain();
+
+    noise.buffer = buffer;
+    filter.type = "highpass";
+    filter.frequency.value = 900;
+    gain.gain.value = 0.7;
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioContext.destination);
+    noise.start();
+  }
+
+  async function clapAndPlay() {
+    if (!audioBuffer) return;
+
+    const syncPosition = getLoopBounds().start;
+    const syncTimecode = formatTimecode(syncPosition, fps());
+    const syncFrame = Math.floor(syncPosition * fps());
+
+    $("previewSync").textContent = syncTimecode;
+    $("slateSyncReadout").textContent =
+      `Slate sync: ${syncTimecode}  |  Frame ${syncFrame}`;
+    slateStatus.textContent =
+      `Slate marked at ${syncTimecode} (frame ${syncFrame}).`;
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    playClapSound();
+    await startPlayback(syncPosition);
+  }
+
+  fileInput.addEventListener("change", event => loadFile(event.target.files[0]));
 
   playButton.addEventListener("click", () => {
     if (!audioBuffer) return;
@@ -569,15 +783,19 @@
     else startPlayback(pausedPosition);
   });
 
-  stopButton.addEventListener("click", () => {
-    isPlaying = false;
-    stopSource();
-    pausedPosition = 0;
-    playButton.textContent = "Play loop";
-    stopButton.disabled = true;
-    status.textContent = "Stopped.";
-    refresh();
+  slatePlayButton.addEventListener("click", clapAndPlay);
+
+  $("nextTakeButton").addEventListener("click", () => {
+    $("takeInput").value = Math.max(1, Number($("takeInput").value) || 1) + 1;
+    updateSlatePreview();
   });
+
+  $("productionInput").addEventListener("input", updateSlatePreview);
+  $("sceneInput").addEventListener("input", updateSlatePreview);
+  $("shotInput").addEventListener("input", updateSlatePreview);
+  $("takeInput").addEventListener("input", updateSlatePreview);
+  $("directorInput").addEventListener("input", updateSlatePreview);
+  $("dateInput").addEventListener("input", updateSlatePreview);
 
   modeSelect.addEventListener("change", () => {
     const bounds = getLoopBounds();
@@ -644,12 +862,9 @@
     const seconds = canvasSecondsFromEvent(event);
     const frame = Math.round(seconds * fps());
 
-    // Dragging a marker switches to Frames mode.
-    if (modeSelect.value !== "frames") {
-      modeSelect.value = "frames";
-      frameControls.classList.remove("hidden");
-      measureControls.classList.add("hidden");
-    }
+    modeSelect.value = "frames";
+    frameControls.classList.remove("hidden");
+    measureControls.classList.add("hidden");
 
     let start = Math.max(0, Number(startFrameInput.value) || 0);
     let end = Math.max(start + 1, Number(endFrameInput.value) || start + 1);
@@ -685,6 +900,7 @@
     requestAnimationFrame(animationFrame);
   }
 
+  updateSlatePreview();
   refresh();
   requestAnimationFrame(animationFrame);
 })();
