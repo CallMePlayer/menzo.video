@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Menzo Video - Music Video Slate</title>
+  <title>Menzo Video - The Music Video Slate</title>
   <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
   <style>
     :root {
@@ -30,6 +30,7 @@
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 16px;
+      overflow: visible;
     }
 
     .controls {
@@ -161,18 +162,39 @@
     }
 
     /* Slate preview */
+    .slate-stage {
+      margin: 16px 0 0;
+      padding-top: 20px;
+    }
+
     .slate-board {
+      position: relative;
       max-width: 720px;
-      overflow: hidden;
+      overflow: visible;
       border: 2px solid #d8dde3;
       border-radius: 8px;
       background: #f1f1ed;
       color: #17191c;
-      margin: 16px 0 14px;
+      margin: 0 0 14px;
       box-shadow: 0 8px 24px rgba(0,0,0,.3);
+      transform-origin: top center;
     }
 
-    .clapper-top {
+    .slate-board.clap-flash {
+      box-shadow: 0 0 0 6px #fff, 0 8px 32px rgba(255,255,255,.35);
+    }
+
+    .clapper {
+      position: relative;
+      height: 44px;
+      margin-bottom: 2px;
+      overflow: visible;
+      perspective: 900px;
+      transform-style: preserve-3d;
+    }
+
+    .clapper-base,
+    .clapper-arm {
       height: 40px;
       border-bottom: 3px solid #16181b;
       background: repeating-linear-gradient(
@@ -182,6 +204,41 @@
         #17191c 24px,
         #17191c 48px
       );
+    }
+
+    .clapper-arm {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      z-index: 2;
+      transform-origin: 18px 100%;
+      transform: rotateX(0deg) rotate(0deg);
+      border-radius: 6px 6px 0 0;
+      box-shadow: 0 4px 10px rgba(0,0,0,.28);
+      transition: transform 90ms cubic-bezier(.15,.9,.2,1);
+    }
+
+    .clapper.open .clapper-arm {
+      transform: rotateX(-58deg) rotate(-10deg);
+      transition: transform 280ms ease-out;
+    }
+
+    .clapper.slamming .clapper-arm {
+      transform: rotateX(0deg) rotate(0deg);
+      transition: transform 85ms cubic-bezier(.1,1.2,.2,1);
+    }
+
+    .clapper-hinge {
+      position: absolute;
+      left: 8px;
+      top: 12px;
+      z-index: 3;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #d8dde3, #3a4048 70%);
+      box-shadow: 0 1px 2px rgba(0,0,0,.4);
     }
 
     .slate-title {
@@ -233,6 +290,120 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .danger {
+      background: #3a2428;
+      border-color: #a15b66;
+    }
+
+    .danger:hover { background: #522e35; }
+
+    body.slate-presenting {
+      max-width: none;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #0b0e13;
+    }
+
+    body.slate-presenting h1,
+    body.slate-presenting .panel:not(.slate-panel),
+    body.slate-presenting .slate-panel h2,
+    body.slate-presenting .slate-fields {
+      display: none;
+    }
+
+    body.slate-presenting .slate-panel {
+      height: 100vh;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background: #0b0e13;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .slate-stage:fullscreen,
+    .slate-stage:-webkit-full-screen,
+    body.slate-presenting .slate-stage {
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      padding: 28px 32px 24px;
+      background: #0b0e13;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slate-stage:fullscreen .slate-board,
+    .slate-stage:-webkit-full-screen .slate-board,
+    body.slate-presenting .slate-board {
+      max-width: min(1400px, 96vw);
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .slate-stage:fullscreen .clapper,
+    .slate-stage:-webkit-full-screen .clapper,
+    body.slate-presenting .clapper {
+      height: 72px;
+    }
+
+    .slate-stage:fullscreen .clapper-base,
+    .slate-stage:fullscreen .clapper-arm,
+    .slate-stage:-webkit-full-screen .clapper-base,
+    .slate-stage:-webkit-full-screen .clapper-arm,
+    body.slate-presenting .clapper-base,
+    body.slate-presenting .clapper-arm {
+      height: 64px;
+    }
+
+    .slate-stage:fullscreen .slate-title,
+    .slate-stage:-webkit-full-screen .slate-title,
+    body.slate-presenting .slate-title {
+      font-size: 2.1rem;
+      padding: 18px 22px 12px;
+    }
+
+    .slate-stage:fullscreen .slate-cell,
+    .slate-stage:-webkit-full-screen .slate-cell,
+    body.slate-presenting .slate-cell {
+      min-height: 110px;
+      padding: 14px 18px;
+    }
+
+    .slate-stage:fullscreen .slate-label,
+    .slate-stage:-webkit-full-screen .slate-label,
+    body.slate-presenting .slate-label {
+      font-size: .9rem;
+    }
+
+    .slate-stage:fullscreen .slate-value,
+    .slate-stage:-webkit-full-screen .slate-value,
+    body.slate-presenting .slate-value {
+      font-size: 2rem;
+    }
+
+    .slate-stage:fullscreen .slate-sync,
+    .slate-stage:-webkit-full-screen .slate-sync,
+    body.slate-presenting .slate-sync {
+      font-size: 1.15rem;
+      padding: 14px 18px;
+    }
+
+    .slate-stage:fullscreen .slate-actions,
+    .slate-stage:-webkit-full-screen .slate-actions,
+    .slate-stage:fullscreen #slateStatus,
+    .slate-stage:-webkit-full-screen #slateStatus,
+    body.slate-presenting .slate-actions,
+    body.slate-presenting #slateStatus {
+      max-width: min(1400px, 96vw);
+      width: 100%;
+    }
+
     @media (max-width: 600px) {
       body { padding: 14px; }
       #waveform { height: 210px; }
@@ -244,10 +415,10 @@
 <body>
   <h1>Menzo Video - Music Video Slate</h1>
 
-  <section class="panel">
+  <section class="panel slate-panel">
     <h2>Film slate</h2>
 
-    <div class="controls">
+    <div class="controls slate-fields">
       <label>
         Production
         <input id="productionInput" type="text" value="Menzo Video">
@@ -274,8 +445,13 @@
       </label>
     </div>
 
-    <div class="slate-board" aria-label="Film slate preview">
-      <div class="clapper-top"></div>
+    <div class="slate-stage" id="slateStage">
+    <div class="slate-board" id="slateBoard" aria-label="Film slate preview">
+      <div class="clapper" id="clapper" aria-hidden="true">
+        <div class="clapper-arm"></div>
+        <div class="clapper-base"></div>
+        <div class="clapper-hinge"></div>
+      </div>
       <div class="slate-title" id="previewProduction">MENZO VIDEO</div>
 
       <div class="slate-grid">
@@ -308,11 +484,14 @@
       <div class="slate-sync" id="slateSyncReadout">Slate sync: Not marked</div>
     </div>
 
-    <div class="controls">
+    <div class="controls slate-actions">
       <button id="slatePlayButton" class="primary" disabled>CLAP &amp; PLAY LOOP</button>
+      <button id="slateStopButton" class="danger" disabled>Stop</button>
       <button id="nextTakeButton">Next take</button>
+      <button id="fullscreenButton">Fullscreen slate</button>
     </div>
     <p id="slateStatus">Load an audio file, then clap to mark and play the loop.</p>
+    </div>
   </section>
 
   <section class="panel">
@@ -443,6 +622,11 @@
   const playButton = $("playButton");
   const stopButton = $("stopButton");
   const slatePlayButton = $("slatePlayButton");
+  const slateStopButton = $("slateStopButton");
+  const fullscreenButton = $("fullscreenButton");
+  const clapper = $("clapper");
+  const slateBoard = $("slateBoard");
+  const slateStage = $("slateStage");
   const status = $("status");
   const slateStatus = $("slateStatus");
   const canvas = $("waveform");
@@ -469,6 +653,7 @@
   let activeLoopMarkerId = null;
   let slateSessionActive = false;
   let loopWrapCount = 0;
+  let isClapping = false;
 
   function fps() {
     return Number(fpsSelect.value);
@@ -788,6 +973,7 @@
       playButton.disabled = false;
       slatePlayButton.disabled = false;
       stopButton.disabled = true;
+      slateStopButton.disabled = true;
       addMarkerButton.disabled = false;
       addMeasureRangeButton.disabled = false;
       currentFileName = file.name;
@@ -844,6 +1030,7 @@
     sourceNode.start(0, position);
     playButton.textContent = "Pause";
     stopButton.disabled = false;
+    slateStopButton.disabled = false;
     status.textContent = "Playing loop.";
     refresh();
   }
@@ -864,6 +1051,7 @@
     stopSource();
     playButton.textContent = "Play loop";
     stopButton.disabled = true;
+    slateStopButton.disabled = true;
     slateSessionActive = false;
     loopWrapCount = 0;
     status.textContent = "Stopped.";
@@ -1183,6 +1371,23 @@
     $("previewDate").textContent = date;
   }
 
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function animateClap() {
+    clapper.classList.remove("slamming");
+    clapper.classList.add("open");
+    await wait(320);
+    clapper.classList.remove("open");
+    clapper.classList.add("slamming");
+    slateBoard.classList.add("clap-flash");
+    playClapSound();
+    await wait(150);
+    clapper.classList.remove("slamming");
+    slateBoard.classList.remove("clap-flash");
+  }
+
   function playClapSound() {
     if (!audioContext) return;
 
@@ -1212,7 +1417,9 @@
   }
 
   async function clapAndPlay() {
-    if (!audioBuffer) return;
+    if (!audioBuffer || isClapping) return;
+    isClapping = true;
+    slatePlayButton.disabled = true;
 
     const marker = currentLoopMarker();
     applyMarkerNameToScene(marker);
@@ -1234,8 +1441,59 @@
     }
 
     slateSessionActive = true;
-    playClapSound();
-    await startPlayback(syncPosition);
+    try {
+      await animateClap();
+      await startPlayback(syncPosition);
+    } finally {
+      isClapping = false;
+      slatePlayButton.disabled = false;
+    }
+  }
+
+  function isNativeFullscreen() {
+    return document.fullscreenElement === slateStage
+      || document.webkitFullscreenElement === slateStage;
+  }
+
+  function isSlateFullscreen() {
+    return isNativeFullscreen() || document.body.classList.contains("slate-presenting");
+  }
+
+  function updateFullscreenButton() {
+    fullscreenButton.textContent = isSlateFullscreen()
+      ? "Exit fullscreen"
+      : "Fullscreen slate";
+  }
+
+  function setCssFullscreen(on) {
+    document.body.classList.toggle("slate-presenting", on);
+    updateFullscreenButton();
+  }
+
+  async function toggleSlateFullscreen() {
+    if (isNativeFullscreen()) {
+      try {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } catch (error) {
+        console.error(error);
+      }
+      return;
+    }
+
+    if (document.body.classList.contains("slate-presenting")) {
+      setCssFullscreen(false);
+      return;
+    }
+
+    try {
+      if (slateStage.requestFullscreen) await slateStage.requestFullscreen();
+      else if (slateStage.webkitRequestFullscreen) slateStage.webkitRequestFullscreen();
+    } catch (error) {
+      console.error(error);
+    }
+
+    if (!isNativeFullscreen()) setCssFullscreen(true);
   }
 
   fileInput.addEventListener("change", event => loadFile(event.target.files[0]));
@@ -1246,9 +1504,22 @@
     else startPlayback(pausedPosition);
   });
 
-  stopButton.addEventListener("click", () => {
+  function handleStop() {
     if (!audioBuffer) return;
     stopPlayback();
+    slateStatus.textContent = "Stopped.";
+  }
+
+  stopButton.addEventListener("click", handleStop);
+  slateStopButton.addEventListener("click", handleStop);
+  fullscreenButton.addEventListener("click", toggleSlateFullscreen);
+  document.addEventListener("fullscreenchange", updateFullscreenButton);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+  window.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    if (document.body.classList.contains("slate-presenting")) {
+      setCssFullscreen(false);
+    }
   });
 
   addMarkerButton.addEventListener("click", () => {
