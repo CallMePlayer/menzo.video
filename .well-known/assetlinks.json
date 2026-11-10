@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "video.menzo.twa",
+        "sha256_cert_fingerprints": ["56:D8:F6:94:92:34:CE:8E:A4:A9:66:73:DA:38:34:6E:4F:3C:30:FE:A3:74:A9:EC:1A:20:CF:A6:E6:2A:7F:1B"]
+      }
+    }]
