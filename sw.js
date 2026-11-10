@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever you change index.html or other cached files.
-const CACHE_VERSION = "menzo-slate-v4";
+const CACHE_VERSION = "menzo-slate-v5";
 const ASSETS = [
   "./",
   "./index.html",

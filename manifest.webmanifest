@@ -1,6 +1,6 @@
 {
-  "name": "Menzo Video - The Music Video Slate",
-  "short_name": "Menzo Slate",
+  "name": "Menzo Video",
+  "short_name": "Menzo Video",
   "description": "Music video slate, audio loop and scene marker tool.",
   "id": "./",
   "start_url": "./index.html",
