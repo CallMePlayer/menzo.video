@@ -1,5 +1,5 @@
-// Bump CACHE_VERSION whenever you change index.html or other cached files.
-const CACHE_VERSION = "menzo-slate-v5";
+// Bump CACHE_VERSION whenever you change any cached file.
+const CACHE_VERSION = "menzo-video-v6";
 const ASSETS = [
   "./",
   "./index.html",
@@ -13,7 +13,9 @@ const ASSETS = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION)
+      .then(cache => cache.addAll(ASSETS.map(url => new Request(url, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -25,30 +27,35 @@ self.addEventListener("activate", event => {
   );
 });
 
+// Stale-while-revalidate: answer instantly from the cache (works offline and on
+// bad connections), and refresh the cached copy in the background when online.
 self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
 
-  // Pages: network first so updates show up, fall back to cache when offline.
-  if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req)
+  const isPage = req.mode === "navigate";
+  const key = isPage ? "./index.html" : req;
+
+  event.respondWith(
+    caches.open(CACHE_VERSION).then(async cache => {
+      const cached = await cache.match(key, { ignoreSearch: true });
+
+      const refresh = fetch(req)
         .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE_VERSION).then(c => c.put("./index.html", copy));
+          if (res && res.ok) cache.put(key, res.clone());
           return res;
         })
-        .catch(() => caches.match("./index.html"))
-    );
-    return;
-  }
+        .catch(() => null);
 
-  // Everything else: cache first, then network.
-  event.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE_VERSION).then(c => c.put(req, copy));
-      return res;
-    }))
+      if (cached) {
+        event.waitUntil(refresh);
+        return cached;
+      }
+
+      const res = await refresh;
+      if (res) return res;
+      if (isPage) return (await cache.match("./index.html")) || Response.error();
+      return Response.error();
+    })
   );
 });
