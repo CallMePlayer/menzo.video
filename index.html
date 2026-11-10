@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Menzo Video - The Music Video Slate</title>
+  <meta name="description" content="Music video slate, audio loop and scene marker tool.">
+  <meta name="theme-color" content="#11151b">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Menzo Slate">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     :root {
       color-scheme: dark;
@@ -19,6 +28,10 @@
       max-width: 1100px;
       margin: 0 auto;
       padding: 24px;
+      padding-top: calc(24px + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      padding-left: calc(24px + env(safe-area-inset-left, 0px));
+      padding-right: calc(24px + env(safe-area-inset-right, 0px));
     }
 
     h1 { font-size: 1.5rem; margin: 0 0 18px; }
@@ -300,6 +313,7 @@
     body.slate-presenting {
       max-width: none;
       height: 100vh;
+      height: 100dvh;
       margin: 0;
       padding: 0;
       overflow: hidden;
@@ -315,6 +329,7 @@
 
     body.slate-presenting .slate-panel {
       height: 100vh;
+      height: 100dvh;
       margin: 0;
       border: 0;
       border-radius: 0;
@@ -324,32 +339,40 @@
       justify-content: center;
     }
 
+    /* Fullscreen / presenting: everything scales with viewport height so the
+       board and the buttons always fit on screen. */
     .slate-stage:fullscreen,
     .slate-stage:-webkit-full-screen,
     body.slate-presenting .slate-stage {
+      --arm: clamp(28px, 6vh, 52px);
       box-sizing: border-box;
       width: 100%;
       height: 100%;
-      padding: 28px 32px 24px;
+      margin: 0;
+      padding: clamp(8px, 2.5vh, 24px) clamp(12px, 3vw, 32px);
+      padding-top: calc(clamp(8px, 2.5vh, 24px) + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(clamp(8px, 2.5vh, 24px) + env(safe-area-inset-bottom, 0px));
       background: #0b0e13;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: safe center;
+      overflow-y: auto;
     }
 
     .slate-stage:fullscreen .slate-board,
     .slate-stage:-webkit-full-screen .slate-board,
     body.slate-presenting .slate-board {
-      max-width: min(1400px, 96vw);
+      max-width: min(1100px, 96vw);
       width: 100%;
-      margin-bottom: 20px;
+      margin-bottom: clamp(8px, 2vh, 16px);
+      flex-shrink: 0;
     }
 
     .slate-stage:fullscreen .clapper,
     .slate-stage:-webkit-full-screen .clapper,
     body.slate-presenting .clapper {
-      height: 72px;
+      height: calc(var(--arm) + 6px);
     }
 
     .slate-stage:fullscreen .clapper-base,
@@ -358,40 +381,46 @@
     .slate-stage:-webkit-full-screen .clapper-arm,
     body.slate-presenting .clapper-base,
     body.slate-presenting .clapper-arm {
-      height: 64px;
+      height: var(--arm);
     }
 
     .slate-stage:fullscreen .slate-title,
     .slate-stage:-webkit-full-screen .slate-title,
     body.slate-presenting .slate-title {
-      font-size: 2.1rem;
-      padding: 18px 22px 12px;
+      font-size: clamp(1.05rem, 4.2vh, 2rem);
+      padding: clamp(6px, 1.6vh, 16px) clamp(10px, 2vh, 20px) clamp(4px, 1vh, 10px);
     }
 
     .slate-stage:fullscreen .slate-cell,
     .slate-stage:-webkit-full-screen .slate-cell,
     body.slate-presenting .slate-cell {
-      min-height: 110px;
-      padding: 14px 18px;
+      min-height: clamp(48px, 11vh, 96px);
+      padding: clamp(5px, 1.3vh, 12px) clamp(8px, 1.6vh, 16px);
     }
 
     .slate-stage:fullscreen .slate-label,
     .slate-stage:-webkit-full-screen .slate-label,
     body.slate-presenting .slate-label {
-      font-size: .9rem;
+      font-size: clamp(.6rem, 1.7vh, .85rem);
     }
 
     .slate-stage:fullscreen .slate-value,
     .slate-stage:-webkit-full-screen .slate-value,
     body.slate-presenting .slate-value {
-      font-size: 2rem;
+      font-size: clamp(.95rem, 3.8vh, 1.9rem);
+    }
+
+    .slate-stage:fullscreen #previewSync,
+    .slate-stage:-webkit-full-screen #previewSync,
+    body.slate-presenting #previewSync {
+      font-size: clamp(.8rem, 2.8vh, 1.4rem);
     }
 
     .slate-stage:fullscreen .slate-sync,
     .slate-stage:-webkit-full-screen .slate-sync,
     body.slate-presenting .slate-sync {
-      font-size: 1.15rem;
-      padding: 14px 18px;
+      font-size: clamp(.72rem, 2vh, 1.05rem);
+      padding: clamp(5px, 1.3vh, 12px) clamp(8px, 1.6vh, 16px);
     }
 
     .slate-stage:fullscreen .slate-actions,
@@ -400,8 +429,27 @@
     .slate-stage:-webkit-full-screen #slateStatus,
     body.slate-presenting .slate-actions,
     body.slate-presenting #slateStatus {
-      max-width: min(1400px, 96vw);
+      max-width: min(1100px, 96vw);
       width: 100%;
+      flex-shrink: 0;
+    }
+
+    .slate-stage:fullscreen .slate-actions,
+    .slate-stage:-webkit-full-screen .slate-actions,
+    body.slate-presenting .slate-actions {
+      gap: 8px;
+    }
+
+    .slate-stage:fullscreen #slateStatus,
+    .slate-stage:-webkit-full-screen #slateStatus,
+    body.slate-presenting #slateStatus {
+      margin-top: 6px;
+    }
+
+    #previewSync {
+      white-space: pre-line;
+      overflow: visible;
+      line-height: 1.2;
     }
 
     @media (max-width: 600px) {
@@ -421,11 +469,11 @@
     <div class="controls slate-fields">
       <label>
         Production
-        <input id="productionInput" type="text" value="Menzo Video">
+        <input id="productionInput" type="text" placeholder="Production name">
       </label>
       <label>
         Scene
-        <input id="sceneInput" type="text" value="1">
+        <input id="sceneInput" type="text" placeholder="Scene">
       </label>
       <label>
         Shot
@@ -452,12 +500,12 @@
         <div class="clapper-base"></div>
         <div class="clapper-hinge"></div>
       </div>
-      <div class="slate-title" id="previewProduction">MENZO VIDEO</div>
+      <div class="slate-title" id="previewProduction">—</div>
 
       <div class="slate-grid">
         <div class="slate-cell">
           <span class="slate-label">Scene</span>
-          <span class="slate-value" id="previewScene">1</span>
+          <span class="slate-value" id="previewScene">—</span>
         </div>
         <div class="slate-cell">
           <span class="slate-label">Shot</span>
@@ -488,6 +536,7 @@
       <button id="slatePlayButton" class="primary" disabled>CLAP &amp; PLAY LOOP</button>
       <button id="slateStopButton" class="danger" disabled>Stop</button>
       <button id="nextTakeButton">Next take</button>
+      <button id="resetTakeButton">Reset take to 1</button>
       <button id="fullscreenButton">Fullscreen slate</button>
     </div>
     <p id="slateStatus">Load an audio file, then clap to mark and play the loop.</p>
@@ -581,7 +630,7 @@
       <button id="addMarkerButton" disabled>Add at playhead</button>
     </div>
     <p class="hint">
-      Type a measure range (inclusive) to save a scene, then tap Loop this on set.
+      Type a measure range (inclusive) to save a scene, then tap Loop this on set. Loop this works in both Measures and Frames mode.
       You can still drop a point at the playhead, double-click the waveform, or press M.
     </p>
     <div id="markerList" class="marker-list"></div>
@@ -654,6 +703,7 @@
   let slateSessionActive = false;
   let loopWrapCount = 0;
   let isClapping = false;
+  let lastSlatedLoopKey = null;
 
   function fps() {
     return Number(fpsSelect.value);
@@ -1082,6 +1132,17 @@
   }
 
   function currentLoopMarker() {
+    if (modeSelect.value === "frames") {
+      const tol = (1 / fps()) / 2 + 1e-6;
+      const bounds = getLoopBounds();
+      const frameMatches = songMarkers.filter(marker => {
+        if (marker.kind !== "range") return false;
+        const t = markerTimes(marker);
+        return Math.abs(t.start - bounds.start) < tol && Math.abs(t.end - bounds.end) < tol;
+      });
+      return frameMatches.find(marker => marker.id === activeLoopMarkerId) || frameMatches[0] || null;
+    }
+
     const startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
     const endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
     const rangeMatches = songMarkers.filter(marker => (
@@ -1233,6 +1294,34 @@
     const marker = songMarkers.find(item => item.id === id);
     if (!marker || !audioBuffer) return;
 
+    if (modeSelect.value === "frames") {
+      const t = markerTimes(marker);
+      const rate = fps();
+      let startFrame = Math.max(0, Number(startFrameInput.value) || 0);
+      let endFrame = Math.max(startFrame + 1, Number(endFrameInput.value) || startFrame + 1);
+
+      if (bound === "loop" && marker.kind === "range") {
+        startFrame = Math.round(t.start * rate);
+        endFrame = Math.round(t.end * rate);
+      } else if (bound === "start") {
+        startFrame = Math.round(t.start * rate);
+      } else {
+        endFrame = Math.round(t.end * rate);
+      }
+      if (endFrame <= startFrame) endFrame = startFrame + 1;
+
+      startFrameInput.value = startFrame;
+      endFrameInput.value = endFrame;
+      activeLoopMarkerId = bound === "loop" ? marker.id : activeLoopMarkerId;
+      status.textContent = bound === "loop"
+        ? `Loop set to “${marker.name}” (frames ${startFrame}–${endFrame}).`
+        : `Loop ${bound} set to “${marker.name}” (frame ${bound === "start" ? startFrame : endFrame}).`;
+      renderMarkerList();
+      refresh();
+      restartIfPlaying();
+      return;
+    }
+
     switchToMeasuresMode();
     let startMeasure = Math.max(1, Number(startMeasureInput.value) || 1);
     let endMeasure = Math.max(startMeasure, Number(endMeasureInput.value) || startMeasure);
@@ -1287,7 +1376,7 @@
       const meta = document.createElement("span");
       meta.className = "marker-meta";
       meta.textContent = marker.kind === "range"
-        ? `m${marker.startMeasure}–${marker.endMeasure}  ·  ${formatTimecode(times.start, rate)}`
+        ? `m${marker.startMeasure}–${marker.endMeasure}  ·  ${formatTimecode(times.start, rate)}  ·  frames ${Math.round(times.start * rate)}–${Math.round(times.end * rate)}`
         : `${formatTimecode(times.start, rate)}  ·  frame ${Math.floor(times.start * rate)}`;
 
       const buttons = [];
@@ -1298,10 +1387,17 @@
         loopButton.className = "primary";
         loopButton.textContent = "Loop this";
         loopButton.title = `Set the loop to ${marker.name}`;
-        const loopStart = Math.max(1, Number(startMeasureInput.value) || 1);
-        const loopEnd = Math.max(loopStart, Number(endMeasureInput.value) || loopStart);
-        if (marker.startMeasure === loopStart && marker.endMeasure === loopEnd) {
-          loopButton.classList.add("active-bound");
+        if (modeSelect.value === "frames") {
+          const tol = (1 / rate) / 2 + 1e-6;
+          if (Math.abs(times.start - bounds.start) < tol && Math.abs(times.end - bounds.end) < tol) {
+            loopButton.classList.add("active-bound");
+          }
+        } else {
+          const loopStart = Math.max(1, Number(startMeasureInput.value) || 1);
+          const loopEnd = Math.max(loopStart, Number(endMeasureInput.value) || loopStart);
+          if (marker.startMeasure === loopStart && marker.endMeasure === loopEnd) {
+            loopButton.classList.add("active-bound");
+          }
         }
         loopButton.addEventListener("click", () => applyMarkerAs(marker.id, "loop"));
         buttons.push(loopButton);
@@ -1424,14 +1520,26 @@
     const marker = currentLoopMarker();
     applyMarkerNameToScene(marker);
 
-    const syncPosition = getLoopBounds().start;
+    // A different scene/loop starts again at take 1.
+    const loopBounds = getLoopBounds();
+    const loopKey = `${currentFileName}|${loopBounds.start.toFixed(3)}|${loopBounds.end.toFixed(3)}`;
+    if (lastSlatedLoopKey !== null && loopKey !== lastSlatedLoopKey) {
+      $("takeInput").value = 1;
+      updateSlatePreview();
+    }
+    lastSlatedLoopKey = loopKey;
+
+    const syncPosition = loopBounds.start;
     const syncTimecode = formatTimecode(syncPosition, fps());
     const syncFrame = Math.floor(syncPosition * fps());
     const sceneNote = marker ? `  |  Scene ${marker.name}` : "";
 
-    $("previewSync").textContent = syncTimecode;
+    const endTimecode = formatTimecode(loopBounds.end, fps());
+    const endFrame = Math.floor(loopBounds.end * fps());
+
+    $("previewSync").textContent = `In ${syncTimecode}\nOut ${endTimecode}`;
     $("slateSyncReadout").textContent =
-      `Slate sync: ${syncTimecode}  |  Frame ${syncFrame}${sceneNote}`;
+      `Slate sync: In ${syncTimecode} (frame ${syncFrame})  |  Out ${endTimecode} (frame ${endFrame})${sceneNote}`;
     slateStatus.textContent = marker
       ? `Slate marked at ${syncTimecode} (frame ${syncFrame}). Scene set to “${marker.name}”. Take will increase after each loop.`
       : `Slate marked at ${syncTimecode} (frame ${syncFrame}). Take will increase after each loop.`;
@@ -1559,6 +1667,12 @@
   $("nextTakeButton").addEventListener("click", () => {
     $("takeInput").value = Math.max(1, Number($("takeInput").value) || 1) + 1;
     updateSlatePreview();
+  });
+
+  $("resetTakeButton").addEventListener("click", () => {
+    $("takeInput").value = 1;
+    updateSlatePreview();
+    slateStatus.textContent = "Take reset to 1.";
   });
 
   $("productionInput").addEventListener("input", updateSlatePreview);
@@ -1758,6 +1872,13 @@
   refresh();
   requestAnimationFrame(animationFrame);
 })();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed:", err));
+  });
+}
 </script>
 </body>
 </html>
